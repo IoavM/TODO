@@ -40,14 +40,6 @@ def remove_files(n):
 # Limpiar archivos temporales más antiguos de 7 días
 remove_files(7)
 
-# Sidebar con opciones
-with st.sidebar:
-    st.title("Selecciona una función")
-    option = st.radio(
-        "Elige una herramienta:",
-        ["Generador de Código QR", "Recortar PDF", "Convertidor de Texto a Voz", "Convertidor de Archivos"]
-    )
-
 # 1. Generador de código QR
 def qr_generator():
     st.title("Generador de Código QR")
@@ -123,8 +115,7 @@ def pdf_cutter():
 def text_to_speech_converter():
     st.title("Conversión de Texto a Audio")
     
-    with st.sidebar:
-        st.subheader("Escribe y/o selecciona texto para ser escuchado.")
+    st.subheader("Escribe y/o selecciona texto para ser escuchado.")
     
     # Entrada de texto
     text = st.text_area("Ingrese el texto a escuchar.")
@@ -174,26 +165,6 @@ def text_to_speech_converter():
             st.markdown(get_binary_file_downloader_html(f"temp/{result}.mp3", file_label="Audio File"), unsafe_allow_html=True)
         else:
             st.warning("Por favor, ingresa algún texto para convertir a audio.")
-
-# 4. Convertidor de archivos
-def file_converter():
-    st.title("🔄 Convertidor de Archivos")
-    st.write("Convierte archivos entre diferentes formatos sin límites ni costos.")
-    
-    # Categorías de conversión
-    conversion_category = st.selectbox(
-        "Selecciona la categoría de conversión:",
-        ["Imágenes", "Documentos", "Audio", "Hojas de cálculo"]
-    )
-    
-    if conversion_category == "Imágenes":
-        image_converter()
-    elif conversion_category == "Documentos":
-        document_converter()
-    elif conversion_category == "Audio":
-        audio_converter()
-    elif conversion_category == "Hojas de cálculo":
-        spreadsheet_converter()
 
 # Convertidor de imágenes
 def image_converter():
@@ -284,24 +255,7 @@ def image_converter():
         except Exception as e:
             st.error(f"Error al procesar la imagen: {str(e)}")
 
-# Convertidor de documentos
-def document_converter():
-    st.subheader("Convertidor de Documentos")
-    
-    st.info("Actualmente soportamos las siguientes conversiones: TXT a PDF, DOCX a TXT, PDF a TXT")
-    
-    conversion_type = st.selectbox(
-        "Selecciona el tipo de conversión:",
-        ["TXT a PDF", "DOCX a TXT", "PDF a TXT"]
-    )
-    
-    if conversion_type == "TXT a PDF":
-        txt_to_pdf()
-    elif conversion_type == "DOCX a TXT":
-        docx_to_txt()
-    elif conversion_type == "PDF a TXT":
-        pdf_to_txt()
-
+# Funciones para convertir documentos
 def txt_to_pdf():
     uploaded_file = st.file_uploader("📄 Sube un archivo TXT", type=["txt"])
     
@@ -406,24 +360,7 @@ def audio_converter():
     # Agregar más funcionalidades en el futuro
     st.write("Para convertir un texto a audio, puedes usar la herramienta 'Convertidor de Texto a Voz' desde el menú principal.")
 
-# Convertidor de hojas de cálculo
-def spreadsheet_converter():
-    st.subheader("Convertidor de Hojas de Cálculo")
-    
-    st.info("Actualmente soportamos las siguientes conversiones: CSV a Excel, Excel a CSV, Excel/CSV a PDF")
-    
-    conversion_type = st.selectbox(
-        "Selecciona el tipo de conversión:",
-        ["CSV a Excel", "Excel a CSV", "Excel/CSV a PDF"]
-    )
-    
-    if conversion_type == "CSV a Excel":
-        csv_to_excel()
-    elif conversion_type == "Excel a CSV":
-        excel_to_csv()
-    elif conversion_type == "Excel/CSV a PDF":
-        spreadsheet_to_pdf()
-
+# Funciones para convertir hojas de cálculo
 def csv_to_excel():
     uploaded_file = st.file_uploader("📊 Sube un archivo CSV", type=["csv"])
     
@@ -523,6 +460,70 @@ def spreadsheet_to_pdf():
                 
         except Exception as e:
             st.error(f"Error al convertir el archivo: {str(e)}")
+
+# Función principal para convertidor de documentos
+def document_converter():
+    st.subheader("Convertidor de Documentos")
+    
+    st.info("Actualmente soportamos las siguientes conversiones: TXT a PDF, DOCX a TXT, PDF a TXT")
+    
+    conversion_type = st.selectbox(
+        "Selecciona el tipo de conversión:",
+        ["TXT a PDF", "DOCX a TXT", "PDF a TXT"]
+    )
+    
+    if conversion_type == "TXT a PDF":
+        txt_to_pdf()
+    elif conversion_type == "DOCX a TXT":
+        docx_to_txt()
+    elif conversion_type == "PDF a TXT":
+        pdf_to_txt()
+
+# Función principal para convertidor de hojas de cálculo
+def spreadsheet_converter():
+    st.subheader("Convertidor de Hojas de Cálculo")
+    
+    st.info("Actualmente soportamos las siguientes conversiones: CSV a Excel, Excel a CSV, Excel/CSV a PDF")
+    
+    conversion_type = st.selectbox(
+        "Selecciona el tipo de conversión:",
+        ["CSV a Excel", "Excel a CSV", "Excel/CSV a PDF"]
+    )
+    
+    if conversion_type == "CSV a Excel":
+        csv_to_excel()
+    elif conversion_type == "Excel a CSV":
+        excel_to_csv()
+    elif conversion_type == "Excel/CSV a PDF":
+        spreadsheet_to_pdf()
+
+# 4. Función principal para convertidor de archivos
+def file_converter():
+    st.title("🔄 Convertidor de Archivos")
+    st.write("Convierte archivos entre diferentes formatos sin límites ni costos.")
+    
+    # Categorías de conversión
+    conversion_category = st.selectbox(
+        "Selecciona la categoría de conversión:",
+        ["Imágenes", "Documentos", "Audio", "Hojas de cálculo"]
+    )
+    
+    if conversion_category == "Imágenes":
+        image_converter()
+    elif conversion_category == "Documentos":
+        document_converter()
+    elif conversion_category == "Audio":
+        audio_converter()
+    elif conversion_category == "Hojas de cálculo":
+        spreadsheet_converter()
+
+# Sidebar principal con opciones
+with st.sidebar:
+    st.title("Selecciona una función")
+    option = st.radio(
+        "Elige una herramienta:",
+        ["Generador de Código QR", "Recortar PDF", "Convertidor de Texto a Voz", "Convertidor de Archivos"]
+    )
 
 # Mostrar la función seleccionada según la opción del sidebar
 if option == "Generador de Código QR":
