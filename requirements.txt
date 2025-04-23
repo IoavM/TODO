@@ -6,3 +6,8 @@ pypdf
 gTTS==2.2.2
 googletrans==3.1.0a0
 elevenlabs
+python-docx
+pandas
+matplotlib
+openpyxl
+reportlab
