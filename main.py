@@ -403,13 +403,110 @@ def pdf_to_txt():
 # Convertidor de audio (funcionalidad básica)
 def audio_converter():
     st.subheader("Convertidor de Audio")
-    st.warning("Esta es una versión simplificada del convertidor de audio con funcionalidades limitadas.")
+    st.write("Convierte archivos de audio entre diferentes formatos.")
     
-    st.info("Actualmente soportamos la extracción de texto de audio usando el módulo de texto a voz en reversa.")
+    # Para trabajar con archivos de audio necesitaremos la biblioteca pydub
+    # Muestra un mensaje si no está instalada
+    try:
+        from pydub import AudioSegment
+        pydub_installed = True
+    except ImportError:
+        st.error("Se requiere la biblioteca 'pydub' para la conversión de audio. Instálala con: pip install pydub")
+        st.info("También necesitarás FFmpeg instalado en tu sistema para la conversión de formatos.")
+        pydub_installed = False
+        return
     
-    # Agregar más funcionalidades en el futuro
-    st.write("Para convertir un texto a audio, puedes usar la herramienta 'Convertidor de Texto a Voz' desde el menú principal.")
-
+    if pydub_installed:
+        # Formatos soportados
+        supported_formats = ["mp3", "wav", "ogg", "flac", "aac", "m4a"]
+        
+        uploaded_file = st.file_uploader("🎵 Sube un archivo de audio", type=supported_formats)
+        
+        if uploaded_file:
+            # Obtener el formato original
+            original_format = uploaded_file.name.split('.')[-1].lower()
+            
+            # Guardar temporalmente el archivo subido
+            with open(f"temp/temp_audio.{original_format}", "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            # Cargar el audio con pydub
+            try:
+                audio = AudioSegment.from_file(f"temp/temp_audio.{original_format}", format=original_format)
+                
+                # Información del audio
+                duration_seconds = len(audio) / 1000
+                channels = audio.channels
+                sample_width = audio.sample_width
+                frame_rate = audio.frame_rate
+                
+                st.success("✅ Audio cargado correctamente")
+                st.audio(uploaded_file, format=f"audio/{original_format}")
+                
+                st.info(f"Información del audio:\n" +
+                       f"- Duración: {int(duration_seconds // 60)}:{int(duration_seconds % 60):02d} (min:seg)\n" +
+                       f"- Canales: {channels} ({'Estéreo' if channels == 2 else 'Mono'})\n" +
+                       f"- Profundidad de bits: {sample_width * 8} bits\n" +
+                       f"- Frecuencia de muestreo: {frame_rate} Hz")
+                
+                # Opciones de conversión
+                target_formats = [fmt for fmt in supported_formats if fmt != original_format]
+                target_format = st.selectbox("Convertir a formato:", target_formats)
+                
+                # Opciones adicionales
+                st.subheader("Opciones adicionales")
+                
+                # Ajuste de volumen
+                volume_adjustment = st.slider("Ajuste de volumen (dB):", -20, 20, 0)
+                
+                # Recortar audio
+                trim_audio = st.checkbox("Recortar audio")
+                start_time, end_time = 0, duration_seconds
+                
+                if trim_audio:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        start_time = st.number_input("Tiempo de inicio (segundos):", min_value=0.0, max_value=duration_seconds-1, value=0.0, step=0.1)
+                    with col2:
+                        end_time = st.number_input("Tiempo final (segundos):", min_value=start_time+0.1, max_value=duration_seconds, value=duration_seconds, step=0.1)
+                
+                if st.button("Convertir audio"):
+                    # Aplicar ajustes
+                    processed_audio = audio
+                    
+                    # Ajustar volumen si es necesario
+                    if volume_adjustment != 0:
+                        processed_audio = processed_audio + volume_adjustment
+                    
+                    # Recortar si es necesario
+                    if trim_audio:
+                        processed_audio = processed_audio[int(start_time*1000):int(end_time*1000)]
+                    
+                    # Guardar en el nuevo formato
+                    output_file = f"temp/converted_audio.{target_format}"
+                    processed_audio.export(output_file, format=target_format)
+                    
+                    # Leer el archivo convertido
+                    with open(output_file, "rb") as f:
+                        converted_audio_bytes = f.read()
+                    
+                    st.success(f"✅ Audio convertido a {target_format.upper()}")
+                    
+                    # Reproducir el audio convertido
+                    st.audio(converted_audio_bytes, format=f"audio/{target_format}")
+                    
+                    # Botón de descarga
+                    st.download_button(
+                        label=f"📥 Descargar audio {target_format.upper()}",
+                        data=converted_audio_bytes,
+                        file_name=f"audio_convertido.{target_format}",
+                        mime=f"audio/{target_format}"
+                    )
+                    
+            except Exception as e:
+                st.error(f"Error al procesar el archivo de audio: {str(e)}")
+                st.info("Asegúrate de que FFmpeg esté instalado correctamente en tu sistema.")
+                
 # Convertidor de hojas de cálculo
 def spreadsheet_converter():
     st.subheader("Convertidor de Hojas de Cálculo")
