@@ -11,3 +11,4 @@ pandas
 matplotlib
 openpyxl
 reportlab
+pip install streamlit qrcode Pillow gtts pypdf python-docx pandas matplotlib numpy reportlab openpyxl
