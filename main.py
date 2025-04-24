@@ -47,6 +47,7 @@ with st.sidebar:
         "Elige una herramienta:",
         ["Generador de Código QR", "Recortar PDF", "Convertidor de Texto a Voz", "Convertidor de Archivos"]
     )
+    st.write(f"Opción seleccionada: {option}")  # Debug: Muestra la opción seleccionada
 
 # 1. Generador de código QR
 def qr_generator():
@@ -155,12 +156,12 @@ def text_to_speech_converter():
         tts.save(f"temp/{my_file_name}.mp3")
         return my_file_name, text
     
-    if st.button("convertir a Audio"):
+    if st.button("Convertir a Audio"):
         if text:
             result, output_text = text_to_speech(text, tld, lg)
             audio_file = open(f"temp/{result}.mp3", "rb")
             audio_bytes = audio_file.read()
-            st.markdown(f"## Tú audio:")
+            st.markdown(f"## Tu audio:")
             st.audio(audio_bytes, format="audio/mp3", start_time=0)
             
             with open(f"temp/{result}.mp3", "rb") as f:
@@ -177,23 +178,26 @@ def text_to_speech_converter():
 
 # 4. Convertidor de archivos
 def file_converter():
-    st.title("🔄 Convertidor de Archivos")
-    st.write("Convierte archivos entre diferentes formatos sin límites ni costos.")
-    
-    # Categorías de conversión
-    conversion_category = st.selectbox(
-        "Selecciona la categoría de conversión:",
-        ["Imágenes", "Documentos", "Audio", "Hojas de cálculo"]
-    )
-    
-    if conversion_category == "Imágenes":
-        image_converter()
-    elif conversion_category == "Documentos":
-        document_converter()
-    elif conversion_category == "Audio":
-        audio_converter()
-    elif conversion_category == "Hojas de cálculo":
-        spreadsheet_converter()
+    try:
+        st.title("🔄 Convertidor de Archivos")
+        st.write("Convierte archivos entre diferentes formatos sin límites ni costos.")
+        
+        # Categorías de conversión
+        conversion_category = st.selectbox(
+            "Selecciona la categoría de conversión:",
+            ["Imágenes", "Documentos", "Audio", "Hojas de cálculo"]
+        )
+        
+        if conversion_category == "Imágenes":
+            image_converter()
+        elif conversion_category == "Documentos":
+            document_converter()
+        elif conversion_category == "Audio":
+            audio_converter()
+        elif conversion_category == "Hojas de cálculo":
+            spreadsheet_converter()
+    except Exception as e:
+        st.error(f"Error en la función file_converter: {str(e)}")
 
 # Convertidor de imágenes
 def image_converter():
@@ -532,4 +536,9 @@ elif option == "Recortar PDF":
 elif option == "Convertidor de Texto a Voz":
     text_to_speech_converter()
 elif option == "Convertidor de Archivos":
-    file_converter()
+    try:
+        file_converter()
+    except Exception as e:
+        st.error(f"Error al cargar el convertidor de archivos: {str(e)}")
+else:
+    st.error(f"Opción no reconocida: {option}")
