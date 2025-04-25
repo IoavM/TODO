@@ -17,6 +17,10 @@ import numpy as np
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+from docx2pdf import convert as docx2pdf_convert
+from pdf2docx import Converter as PDF2DOCXConverter
+import tempfile
+
 # Configuración de la página
 st.set_page_config(page_title="Aplicación Multifuncional", layout="wide")
 
@@ -289,14 +293,20 @@ def image_converter():
             st.error(f"Error al procesar la imagen: {str(e)}")
 
 # Convertidor de documentos
+# Añade esto a tus imports
+from docx2pdf import convert as docx2pdf_convert
+from pdf2docx import Converter as PDF2DOCXConverter
+import tempfile
+
+# Modificar la función document_converter para incluir las nuevas opciones
 def document_converter():
     st.subheader("Convertidor de Documentos")
     
-    st.info("Actualmente soportamos las siguientes conversiones: TXT a PDF, DOCX a TXT, PDF a TXT")
+    st.info("Actualmente soportamos las siguientes conversiones: TXT a PDF, DOCX a TXT, PDF a TXT, DOCX a PDF, PDF a DOCX")
     
     conversion_type = st.selectbox(
         "Selecciona el tipo de conversión:",
-        ["TXT a PDF", "DOCX a TXT", "PDF a TXT"]
+        ["TXT a PDF", "DOCX a TXT", "PDF a TXT", "DOCX a PDF", "PDF a DOCX"]
     )
     
     if conversion_type == "TXT a PDF":
@@ -305,101 +315,124 @@ def document_converter():
         docx_to_txt()
     elif conversion_type == "PDF a TXT":
         pdf_to_txt()
+    elif conversion_type == "DOCX a PDF":
+        docx_to_pdf()
+    elif conversion_type == "PDF a DOCX":
+        pdf_to_docx()
 
-def txt_to_pdf():
-    uploaded_file = st.file_uploader("📄 Sube un archivo TXT", type=["txt"])
-    
-    if uploaded_file:
-        try:
-            text_content = uploaded_file.getvalue().decode("utf-8")
-            st.text_area("Vista previa del contenido:", text_content[:500] + ("..." if len(text_content) > 500 else ""), height=200)
-            
-            if st.button("Convertir a PDF"):
-                packet = BytesIO()
-                c = canvas.Canvas(packet, pagesize=letter)
-                
-                # Configurar el estilo
-                c.setFont("Helvetica", 12)
-                
-                # Saltos de línea y márgenes
-                text_object = c.beginText(40, 750)  # Posición inicial (x, y) desde abajo izquierda
-                
-                # Dividir el texto en líneas y agregarlas al PDF
-                for line in text_content.split('\n'):
-                    # Dividir líneas largas
-                    while len(line) > 80:  # Aproximadamente 80 caracteres por línea
-                        text_object.textLine(line[:80])
-                        line = line[80:]
-                    text_object.textLine(line)
-                
-                c.drawText(text_object)
-                c.save()
-                
-                # Mover al inicio del BytesIO
-                packet.seek(0)
-                
-                st.success("✅ TXT convertido a PDF")
-                st.download_button(
-                    label="📥 Descargar PDF",
-                    data=packet,
-                    file_name="texto_convertido.pdf",
-                    mime="application/pdf"
-                )
-                
-        except Exception as e:
-            st.error(f"Error al convertir el archivo: {str(e)}")
+# Añadir estas nuevas funciones
 
-def docx_to_txt():
+def docx_to_pdf():
     uploaded_file = st.file_uploader("📄 Sube un archivo DOCX", type=["docx"])
     
     if uploaded_file:
         try:
-            doc = docx.Document(uploaded_file)
-            text_content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            # Crear directorio temporal
+            temp_dir = tempfile.TemporaryDirectory()
+            input_path = f"{temp_dir.name}/input.docx"
+            output_path = f"{temp_dir.name}/output.pdf"
             
-            st.text_area("Vista previa del contenido:", text_content[:500] + ("..." if len(text_content) > 500 else ""), height=200)
+            # Guardar el archivo subido
+            with open(input_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-            if st.button("Convertir a TXT"):
-                text_bytes = text_content.encode()
+            # Realizar la conversión
+            if st.button("Convertir a PDF"):
+                with st.spinner("⏳ Convirtiendo DOCX a PDF..."):
+                    docx2pdf_convert(input_path, output_path)
                 
-                st.success("✅ DOCX convertido a TXT")
+                # Leer el archivo convertido
+                with open(output_path, "rb") as f:
+                    pdf_bytes = f.read()
+                
+                st.success("✅ DOCX convertido a PDF")
                 st.download_button(
-                    label="📥 Descargar TXT",
-                    data=text_bytes,
-                    file_name="documento_convertido.txt",
-                    mime="text/plain"
+                    label="📥 Descargar PDF",
+                    data=pdf_bytes,
+                    file_name="documento_convertido.pdf",
+                    mime="application/pdf"
                 )
+                
+                # Opcional: previsualizar primera página
+                try:
+                    reader = PdfReader(output_path)
+                    if len(reader.pages) > 0:
+                        st.write("Vista previa (primera página):")
+                        st.write(reader.pages[0].extract_text()[:500] + "...")
+                except:
+                    pass
+                    
+            # Limpiar
+            temp_dir.cleanup()
                 
         except Exception as e:
             st.error(f"Error al convertir el archivo: {str(e)}")
+            st.info("Para la conversión de DOCX a PDF, asegúrate de tener LibreOffice o Microsoft Word instalado en el servidor.")
 
-def pdf_to_txt():
+def pdf_to_docx():
     uploaded_file = st.file_uploader("📄 Sube un archivo PDF", type=["pdf"])
     
     if uploaded_file:
         try:
-            reader = PdfReader(uploaded_file)
-            text_content = ""
+            # Crear directorio temporal
+            temp_dir = tempfile.TemporaryDirectory()
+            input_path = f"{temp_dir.name}/input.pdf"
+            output_path = f"{temp_dir.name}/output.docx"
             
-            for page in reader.pages:
-                text_content += page.extract_text() + "\n\n"
+            # Guardar el archivo subido
+            with open(input_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-            st.text_area("Vista previa del contenido:", text_content[:500] + ("..." if len(text_content) > 500 else ""), height=200)
+            # Opciones de conversión
+            max_pages = 50  # Limite por defecto para evitar archivos muy grandes
             
-            if st.button("Convertir a TXT"):
-                text_bytes = text_content.encode()
+            # Verificar número de páginas
+            reader = PdfReader(input_path)
+            total_pages = len(reader.pages)
+            
+            st.info(f"Este PDF tiene {total_pages} páginas.")
+            
+            if total_pages > max_pages:
+                convert_all = st.checkbox(f"El PDF tiene más de {max_pages} páginas. ¿Convertir todas? (puede tomar tiempo)")
+                pages_to_convert = total_pages if convert_all else max_pages
+            else:
+                pages_to_convert = total_pages
+            
+            # Realizar la conversión
+            if st.button("Convertir a DOCX"):
+                with st.spinner(f"⏳ Convirtiendo PDF a DOCX ({pages_to_convert} páginas)..."):
+                    # Configurar el convertidor
+                    cv = PDF2DOCXConverter(input_path)
+                    # Convertir por páginas
+                    cv.convert(output_path, start=0, end=pages_to_convert)
+                    # Cerrar el convertidor
+                    cv.close()
                 
-                st.success("✅ PDF convertido a TXT")
+                # Leer el archivo convertido
+                with open(output_path, "rb") as f:
+                    docx_bytes = f.read()
+                
+                st.success("✅ PDF convertido a DOCX")
                 st.download_button(
-                    label="📥 Descargar TXT",
-                    data=text_bytes,
-                    file_name="pdf_convertido.txt",
-                    mime="text/plain"
+                    label="📥 Descargar DOCX",
+                    data=docx_bytes,
+                    file_name="pdf_convertido.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
+                
+                # Opcional: mostrar vista previa
+                try:
+                    doc = docx.Document(output_path)
+                    preview_text = "\n".join([p.text for p in doc.paragraphs][:20])
+                    st.text_area("Vista previa del contenido:", preview_text[:500] + ("..." if len(preview_text) > 500 else ""), height=200)
+                except:
+                    pass
+                    
+            # Limpiar
+            temp_dir.cleanup()
                 
         except Exception as e:
             st.error(f"Error al convertir el archivo: {str(e)}")
-
 # Convertidor de audio (funcionalidad básica)
 def audio_converter():
     st.subheader("Convertidor de Audio")
