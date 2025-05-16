@@ -16,19 +16,44 @@ import wave
 import numpy as np
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-
-from docx2pdf import convert as docx2pdf_convert
-from pdf2docx import Converter as PDF2DOCXConverter
 import tempfile
+import sys
+import importlib
+
+# Verificar dependencias
+def check_dependencies():
+    required_packages = [
+        "qrcode", "flask", "pillow", "streamlit", "pypdf", "gtts", 
+        "googletrans", "elevenlabs", "python-docx", "pandas", 
+        "matplotlib", "openpyxl", "reportlab", "pydub"
+    ]
+    
+    missing = []
+    
+    for package in required_packages:
+        try:
+            importlib.import_module(package.replace("-", "_"))
+        except ImportError:
+            missing.append(package)
+    
+    if missing:
+        st.error(f"Faltan las siguientes dependencias: {', '.join(missing)}")
+        st.info("Instálalas con: pip install " + " ".join(missing))
+        return False
+    
+    return True
 
 # Configuración de la página
 st.set_page_config(page_title="Aplicación Multifuncional", layout="wide")
 
 # Crear carpeta temporal si no existe
-try:
-    os.mkdir("temp")
-except:
-    pass
+temp_dir = "temp"
+if not os.path.exists(temp_dir):
+    try:
+        os.makedirs(temp_dir)
+    except Exception as e:
+        st.error(f"Error al crear carpeta temporal: {str(e)}")
+        st.info("Verifica que la aplicación tenga permisos de escritura en el directorio actual.")
 
 # Función para limpiar archivos temporales antiguos
 def remove_files(n):
@@ -293,12 +318,6 @@ def image_converter():
             st.error(f"Error al procesar la imagen: {str(e)}")
 
 # Convertidor de documentos
-# Añade esto a tus imports
-from docx2pdf import convert as docx2pdf_convert
-from pdf2docx import Converter as PDF2DOCXConverter
-import tempfile
-
-# Modificar la función document_converter para incluir las nuevas opciones
 def document_converter():
     st.subheader("Convertidor de Documentos")
     
@@ -320,13 +339,151 @@ def document_converter():
     elif conversion_type == "PDF a DOCX":
         pdf_to_docx()
 
-# Añadir estas nuevas funciones
+# Funciones para conversión de documentos
 
-def docx_to_pdf():
+def txt_to_pdf():
+    uploaded_file = st.file_uploader("📄 Sube un archivo TXT", type=["txt"])
+    
+    if uploaded_file:
+        try:
+            # Leer el contenido del archivo TXT
+            text_content = uploaded_file.getvalue().decode("utf-8")
+            
+            # Crear PDF con ReportLab
+            buffer = BytesIO()
+            c = canvas.Canvas(buffer, pagesize=letter)
+            
+            # Configurar fuente y tamaño
+            c.setFont("Helvetica", 12)
+            
+            # Dividir el texto en líneas y escribir en el PDF
+            y_position = 750  # Posición inicial Y (desde arriba)
+            line_height = 14
+            
+            for line in text_content.split('\n'):
+                # Manejar líneas largas
+                words = line.split()
+                current_line = ""
+                
+                for word in words:
+                    if len(current_line + " " + word) < 80:  # Límite de caracteres por línea
+                        current_line += " " + word if current_line else word
+                    else:
+                        c.drawString(50, y_position, current_line)
+                        y_position -= line_height
+                        current_line = word
+                        
+                        # Nueva página si es necesario
+                        if y_position < 50:
+                            c.showPage()
+                            c.setFont("Helvetica", 12)
+                            y_position = 750
+                
+                # Escribir la última línea de palabras
+                if current_line:
+                    c.drawString(50, y_position, current_line)
+                    y_position -= line_height
+                
+                # Espacio extra entre párrafos
+                y_position -= 5
+                
+                # Nueva página si es necesario
+                if y_position < 50:
+                    c.showPage()
+                    c.setFont("Helvetica", 12)
+                    y_position = 750
+            
+            c.save()
+            buffer.seek(0)
+            
+            st.success("✅ TXT convertido a PDF")
+            st.download_button(
+                label="📥 Descargar PDF",
+                data=buffer,
+                file_name="texto_convertido.pdf",
+                mime="application/pdf"
+            )
+                
+        except Exception as e:
+            st.error(f"Error al convertir el archivo: {str(e)}")
+
+def docx_to_txt():
     uploaded_file = st.file_uploader("📄 Sube un archivo DOCX", type=["docx"])
     
     if uploaded_file:
         try:
+            # Crear un documento Word a partir del archivo subido
+            doc = docx.Document(uploaded_file)
+            
+            # Extraer texto
+            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+            # Mostrar vista previa
+            st.text_area("Vista previa del texto extraído:", text[:1000] + ("..." if len(text) > 1000 else ""), height=300)
+            
+            # Botón de descarga
+            if st.button("Descargar como TXT"):
+                buffer = BytesIO()
+                buffer.write(text.encode())
+                buffer.seek(0)
+                
+                st.success("✅ DOCX convertido a TXT")
+                st.download_button(
+                    label="📥 Descargar TXT",
+                    data=buffer,
+                    file_name="documento_convertido.txt",
+                    mime="text/plain"
+                )
+                
+        except Exception as e:
+            st.error(f"Error al convertir el archivo: {str(e)}")
+
+def pdf_to_txt():
+    uploaded_file = st.file_uploader("📄 Sube un archivo PDF", type=["pdf"])
+    
+    if uploaded_file:
+        try:
+            # Leer el PDF
+            reader = PdfReader(uploaded_file)
+            
+            # Extraer texto
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n\n"
+            
+            # Mostrar vista previa
+            st.text_area("Vista previa del texto extraído:", text[:1000] + ("..." if len(text) > 1000 else ""), height=300)
+            
+            # Botón de descarga
+            if st.button("Descargar como TXT"):
+                buffer = BytesIO()
+                buffer.write(text.encode())
+                buffer.seek(0)
+                
+                st.success("✅ PDF convertido a TXT")
+                st.download_button(
+                    label="📥 Descargar TXT",
+                    data=buffer,
+                    file_name="pdf_convertido.txt",
+                    mime="text/plain"
+                )
+                
+        except Exception as e:
+            st.error(f"Error al convertir el archivo: {str(e)}")
+
+def docx_to_pdf():
+    st.warning("⚠️ Esta función requiere LibreOffice o Microsoft Word instalado en el servidor.")
+    uploaded_file = st.file_uploader("📄 Sube un archivo DOCX", type=["docx"])
+    
+    if uploaded_file:
+        try:
+            # Intentar importar docx2pdf
+            try:
+                from docx2pdf import convert as docx2pdf_convert
+            except ImportError:
+                st.error("La biblioteca docx2pdf no está instalada. Instálala con: pip install docx2pdf")
+                return
+                
             # Crear directorio temporal
             temp_dir = tempfile.TemporaryDirectory()
             input_path = f"{temp_dir.name}/input.docx"
@@ -339,41 +496,51 @@ def docx_to_pdf():
             # Realizar la conversión
             if st.button("Convertir a PDF"):
                 with st.spinner("⏳ Convirtiendo DOCX a PDF..."):
-                    docx2pdf_convert(input_path, output_path)
-                
-                # Leer el archivo convertido
-                with open(output_path, "rb") as f:
-                    pdf_bytes = f.read()
-                
-                st.success("✅ DOCX convertido a PDF")
-                st.download_button(
-                    label="📥 Descargar PDF",
-                    data=pdf_bytes,
-                    file_name="documento_convertido.pdf",
-                    mime="application/pdf"
-                )
-                
-                # Opcional: previsualizar primera página
-                try:
-                    reader = PdfReader(output_path)
-                    if len(reader.pages) > 0:
-                        st.write("Vista previa (primera página):")
-                        st.write(reader.pages[0].extract_text()[:500] + "...")
-                except:
-                    pass
+                    try:
+                        docx2pdf_convert(input_path, output_path)
+                        
+                        # Leer el archivo convertido
+                        with open(output_path, "rb") as f:
+                            pdf_bytes = f.read()
+                        
+                        st.success("✅ DOCX convertido a PDF")
+                        st.download_button(
+                            label="📥 Descargar PDF",
+                            data=pdf_bytes,
+                            file_name="documento_convertido.pdf",
+                            mime="application/pdf"
+                        )
+                        
+                        # Opcional: previsualizar primera página
+                        try:
+                            reader = PdfReader(output_path)
+                            if len(reader.pages) > 0:
+                                st.write("Vista previa (primera página):")
+                                st.write(reader.pages[0].extract_text()[:500] + "...")
+                        except:
+                            pass
+                    except Exception as e:
+                        st.error(f"Error durante la conversión: {str(e)}")
+                        st.info("Asegúrate de tener LibreOffice o Microsoft Word instalado en el servidor.")
                     
             # Limpiar
             temp_dir.cleanup()
                 
         except Exception as e:
             st.error(f"Error al convertir el archivo: {str(e)}")
-            st.info("Para la conversión de DOCX a PDF, asegúrate de tener LibreOffice o Microsoft Word instalado en el servidor.")
 
 def pdf_to_docx():
     uploaded_file = st.file_uploader("📄 Sube un archivo PDF", type=["pdf"])
     
     if uploaded_file:
         try:
+            # Intentar importar pdf2docx
+            try:
+                from pdf2docx import Converter as PDF2DOCXConverter
+            except ImportError:
+                st.error("La biblioteca pdf2docx no está instalada. Instálala con: pip install pdf2docx")
+                return
+                
             # Crear directorio temporal
             temp_dir = tempfile.TemporaryDirectory()
             input_path = f"{temp_dir.name}/input.pdf"
@@ -401,41 +568,46 @@ def pdf_to_docx():
             # Realizar la conversión
             if st.button("Convertir a DOCX"):
                 with st.spinner(f"⏳ Convirtiendo PDF a DOCX ({pages_to_convert} páginas)..."):
-                    # Configurar el convertidor
-                    cv = PDF2DOCXConverter(input_path)
-                    # Convertir por páginas
-                    cv.convert(output_path, start=0, end=pages_to_convert)
-                    # Cerrar el convertidor
-                    cv.close()
-                
-                # Leer el archivo convertido
-                with open(output_path, "rb") as f:
-                    docx_bytes = f.read()
-                
-                st.success("✅ PDF convertido a DOCX")
-                st.download_button(
-                    label="📥 Descargar DOCX",
-                    data=docx_bytes,
-                    file_name="pdf_convertido.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-                
-                # Opcional: mostrar vista previa
-                try:
-                    doc = docx.Document(output_path)
-                    preview_text = "\n".join([p.text for p in doc.paragraphs][:20])
-                    st.text_area("Vista previa del contenido:", preview_text[:500] + ("..." if len(preview_text) > 500 else ""), height=200)
-                except:
-                    pass
+                    try:
+                        # Configurar el convertidor
+                        cv = PDF2DOCXConverter(input_path)
+                        # Convertir por páginas
+                        cv.convert(output_path, start=0, end=pages_to_convert)
+                        # Cerrar el convertidor
+                        cv.close()
+                        
+                        # Leer el archivo convertido
+                        with open(output_path, "rb") as f:
+                            docx_bytes = f.read()
+                        
+                        st.success("✅ PDF convertido a DOCX")
+                        st.download_button(
+                            label="📥 Descargar DOCX",
+                            data=docx_bytes,
+                            file_name="pdf_convertido.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                        
+                        # Opcional: mostrar vista previa
+                        try:
+                            doc = docx.Document(output_path)
+                            preview_text = "\n".join([p.text for p in doc.paragraphs][:20])
+                            st.text_area("Vista previa del contenido:", preview_text[:500] + ("..." if len(preview_text) > 500 else ""), height=200)
+                        except Exception as preview_error:
+                            st.warning(f"No se pudo generar la vista previa: {str(preview_error)}")
+                    except Exception as e:
+                        st.error(f"Error durante la conversión: {str(e)}")
                     
             # Limpiar
             temp_dir.cleanup()
                 
         except Exception as e:
             st.error(f"Error al convertir el archivo: {str(e)}")
-# Convertidor de audio (funcionalidad básica)
+
+# Convertidor de audio
 def audio_converter():
     st.subheader("Convertidor de Audio")
+    st.warning("⚠️ Esta función requiere FFmpeg instalado en el servidor.")
     st.write("Convierte archivos de audio entre diferentes formatos.")
     
     # Para trabajar con archivos de audio necesitaremos la biblioteca pydub
@@ -504,37 +676,43 @@ def audio_converter():
                         end_time = st.number_input("Tiempo final (segundos):", min_value=start_time+0.1, max_value=duration_seconds, value=duration_seconds, step=0.1)
                 
                 if st.button("Convertir audio"):
-                    # Aplicar ajustes
-                    processed_audio = audio
-                    
-                    # Ajustar volumen si es necesario
-                    if volume_adjustment != 0:
-                        processed_audio = processed_audio + volume_adjustment
-                    
-                    # Recortar si es necesario
-                    if trim_audio:
-                        processed_audio = processed_audio[int(start_time*1000):int(end_time*1000)]
-                    
-                    # Guardar en el nuevo formato
-                    output_file = f"temp/converted_audio.{target_format}"
-                    processed_audio.export(output_file, format=target_format)
-                    
-                    # Leer el archivo convertido
-                    with open(output_file, "rb") as f:
-                        converted_audio_bytes = f.read()
-                    
-                    st.success(f"✅ Audio convertido a {target_format.upper()}")
-                    
-                    # Reproducir el audio convertido
-                    st.audio(converted_audio_bytes, format=f"audio/{target_format}")
-                    
-                    # Botón de descarga
-                    st.download_button(
-                        label=f"📥 Descargar audio {target_format.upper()}",
-                        data=converted_audio_bytes,
-                        file_name=f"audio_convertido.{target_format}",
-                        mime=f"audio/{target_format}"
-                    )
+                    try:
+                        # Aplicar ajustes
+                        processed_audio = audio
+                        
+                        # Ajustar volumen si es necesario
+                        if volume_adjustment != 0:
+                            processed_audio = processed_audio + volume_adjustment
+                        
+                        # Recortar si es necesario
+                        if trim_audio:
+                            processed_audio = processed_audio[int(start_time*1000):int(end_time*1000)]
+                        
+                        # Guardar en el nuevo formato
+                        output_file = f"temp/converted_audio.{target_format}"
+                        processed_audio.export(output_file, format=target_format)
+                        
+                        # Leer el archivo convertido
+                        with open(output_file, "rb") as f:
+                            converted_audio_bytes = f.read()
+                        
+                        st.success(f"✅ Audio convertido a {target_format.upper()}")
+                        
+                        # Reproducir el audio convertido
+                        st.audio(converted_audio_bytes, format=f"audio/{target_format}")
+                        
+                        # Botón de descarga
+                        st.download_button(
+                            label=f"📥 Descargar audio {target_format.upper()}",
+                            data=converted_audio_bytes,
+                            file_name=f"audio_convertido.{target_format}",
+                            mime=f"audio/{target_format}"
+                        )
+                    except Exception as e:
+                        st.error(f"Error durante la conversión del audio: {str(e)}")
+                        if "encoder" in str(e).lower() or "ffmpeg" in str(e).lower():
+                            st.info("Este error puede deberse a que FFmpeg no está instalado o no está en el PATH.")
+                            st.info("Instala FFmpeg siguiendo las instrucciones en: https://www.ffmpeg.org/download.html")
                     
             except Exception as e:
                 st.error(f"Error al procesar el archivo de audio: {str(e)}")
@@ -558,25 +736,36 @@ def spreadsheet_converter():
     elif conversion_type == "Excel/CSV a PDF":
         spreadsheet_to_pdf()
 
+# Funciones para conversión de hojas de cálculo
+
 def csv_to_excel():
     uploaded_file = st.file_uploader("📊 Sube un archivo CSV", type=["csv"])
     
     if uploaded_file:
         try:
+            # Leer el CSV
             df = pd.read_csv(uploaded_file)
+            
+            # Mostrar vista previa
+            st.write("Vista previa de los datos:")
             st.dataframe(df.head())
             
+            # Opciones de conversión
+            sheet_name = st.text_input("Nombre de la hoja de Excel:", "Hoja1")
+            
+            # Botón de conversión
             if st.button("Convertir a Excel"):
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
+                # Crear un archivo Excel en memoria
+                buffer = BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
                 
-                output.seek(0)
+                buffer.seek(0)
                 
                 st.success("✅ CSV convertido a Excel")
                 st.download_button(
                     label="📥 Descargar Excel",
-                    data=output,
+                    data=buffer,
                     file_name="datos_convertidos.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
@@ -589,18 +778,39 @@ def excel_to_csv():
     
     if uploaded_file:
         try:
-            df = pd.read_excel(uploaded_file)
+            # Leer el archivo Excel
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_names = xls.sheet_names
+            
+            # Seleccionar una hoja si hay varias
+            selected_sheet = st.selectbox("Selecciona la hoja a convertir:", sheet_names)
+            
+            # Leer la hoja seleccionada
+            df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+            
+            # Mostrar vista previa
+            st.write("Vista previa de los datos:")
             st.dataframe(df.head())
             
+            # Opciones de conversión
+            separator = st.selectbox("Separador para CSV:", [",", ";", "Tab"])
+            if separator == "Tab":
+                separator = "\t"
+            
+            # Opciones de codificación
+            encoding = st.selectbox("Codificación:", ["utf-8", "latin-1", "ascii"])
+            
+            # Botón de conversión
             if st.button("Convertir a CSV"):
-                output = BytesIO()
-                df.to_csv(output, index=False)
-                output.seek(0)
+                # Crear un archivo CSV en memoria
+                buffer = BytesIO()
+                df.to_csv(buffer, sep=separator, index=False, encoding=encoding)
+                buffer.seek(0)
                 
                 st.success("✅ Excel convertido a CSV")
                 st.download_button(
                     label="📥 Descargar CSV",
-                    data=output,
+                    data=buffer,
                     file_name="datos_convertidos.csv",
                     mime="text/csv"
                 )
@@ -609,56 +819,136 @@ def excel_to_csv():
             st.error(f"Error al convertir el archivo: {str(e)}")
 
 def spreadsheet_to_pdf():
-    uploaded_file = st.file_uploader("📊 Sube un archivo Excel o CSV", type=["xlsx", "xls", "csv"])
+    st.write("Convierte Excel o CSV a un archivo PDF")
     
-    if uploaded_file:
-        try:
-            # Determinar tipo de archivo
-            file_type = uploaded_file.name.split('.')[-1].lower()
-            
-            if file_type in ['xlsx', 'xls']:
-                df = pd.read_excel(uploaded_file)
-            else:  # csv
-                df = pd.read_csv(uploaded_file)
-            
-            st.dataframe(df.head())
-            
-            if st.button("Convertir a PDF"):
-                # Crear una figura de matplotlib con la tabla
-                fig, ax = plt.subplots(figsize=(12, 8))
-                ax.axis('tight')
-                ax.axis('off')
+    file_type = st.radio("Selecciona el tipo de archivo a convertir:", ["Excel", "CSV"])
+    
+    if file_type == "Excel":
+        uploaded_file = st.file_uploader("📊 Sube un archivo Excel", type=["xlsx", "xls"])
+        if uploaded_file:
+            try:
+                # Leer el archivo Excel
+                xls = pd.ExcelFile(uploaded_file)
+                sheet_names = xls.sheet_names
                 
-                # Crear la tabla
-                table = ax.table(
-                    cellText=df.values[:100],  # Limitar a 100 filas para evitar PDFs enormes
-                    colLabels=df.columns,
-                    loc='center',
-                    cellLoc='center',
-                )
+                # Seleccionar una hoja si hay varias
+                selected_sheet = st.selectbox("Selecciona la hoja a convertir:", sheet_names)
                 
-                # Ajustar el estilo de la tabla
-                table.auto_set_font_size(False)
-                table.set_fontsize(8)
-                table.scale(1, 1.5)
+                # Leer la hoja seleccionada
+                df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
                 
-                # Guardar la figura como PDF
-                pdf_output = BytesIO()
-                plt.savefig(pdf_output, format='pdf', bbox_inches='tight')
-                pdf_output.seek(0)
+                # Mostrar vista previa
+                st.write("Vista previa de los datos:")
+                st.dataframe(df.head())
                 
-                st.success("✅ Datos convertidos a PDF (se muestran solo las primeras 100 filas)")
-                st.download_button(
-                    label="📥 Descargar PDF",
-                    data=pdf_output,
-                    file_name="datos_convertidos.pdf",
-                    mime="application/pdf"
-                )
+                process_dataframe_to_pdf(df)
                 
-        except Exception as e:
-            st.error(f"Error al convertir el archivo: {str(e)}")
+            except Exception as e:
+                st.error(f"Error al procesar el archivo Excel: {str(e)}")
+    
+    else:  # CSV
+        uploaded_file = st.file_uploader("📊 Sube un archivo CSV", type=["csv"])
+        if uploaded_file:
+            try:
+                # Opciones para leer CSV
+                separator = st.selectbox("Separador utilizado en el CSV:", [",", ";", "Tab"])
+                if separator == "Tab":
+                    separator = "\t"
+                
+                encoding = st.selectbox("Codificación del archivo:", ["utf-8", "latin-1", "ascii"])
+                
+                # Leer el CSV
+                df = pd.read_csv(uploaded_file, sep=separator, encoding=encoding)
+                
+                # Mostrar vista previa
+                st.write("Vista previa de los datos:")
+                st.dataframe(df.head())
+                
+                process_dataframe_to_pdf(df)
+                
+            except Exception as e:
+                st.error(f"Error al procesar el archivo CSV: {str(e)}")
 
-# Mostrar la función seleccionada según la opción del sidebar
+def process_dataframe_to_pdf(df):
+    # Opciones para la conversión a PDF
+    orientation = st.selectbox("Orientación de la página:", ["Horizontal", "Vertical"])
+    page_size = st.selectbox("Tamaño de página:", ["A4", "Letter", "Legal"])
+    
+    # Conversión a PDF
+    if st.button("Convertir a PDF"):
+        try:
+            # Crear un archivo PDF temporal
+            temp_dir = tempfile.TemporaryDirectory()
+            pdf_path = f"{temp_dir.name}/spreadsheet.pdf"
+            
+            # Configurar el documento PDF
+            if page_size == "A4":
+                from reportlab.lib.pagesizes import A4
+                pagesize = A4
+            elif page_size == "Letter":
+                from reportlab.lib.pagesizes import letter
+                pagesize = letter
+            else:  # Legal
+                from reportlab.lib.pagesizes import legal
+                pagesize = legal
+            
+            # Ajustar orientación si es necesario
+            if orientation == "Horizontal":
+                pagesize = pagesize[1], pagesize[0]  # Intercambiar ancho y alto
+            
+            # Crear el PDF
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+            from reportlab.lib import colors
+            
+            doc = SimpleDocTemplate(
+                pdf_path,
+                pagesize=pagesize,
+                rightMargin=30,
+                leftMargin=30,
+                topMargin=30,
+                bottomMargin=30
+            )
+            
+            # Preparar los datos para la tabla
+            data = [df.columns.tolist()] + df.values.tolist()
+            
+            # Estilo de la tabla
+            table = Table(data)
+            style = TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ])
+            table.setStyle(style)
+            
+            # Construir y guardar el PDF
+            elements = []
+            elements.append(table)
+            doc.build(elements)
+            
+            # Leer el PDF generado
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            
+            st.success("✅ Convertido a PDF correctamente")
+            st.download_button(
+                label="📥 Descargar PDF",
+                data=pdf_bytes,
+                file_name="datos_convertidos.pdf",
+                mime="application/pdf"
+            )
+            
+            # Limpiar archivos temporales
+            temp_dir.cleanup()
+        
+        except Exception as e:
+            st.error(f"Error al generar el PDF: {str(e)}")
+# Ejecutar la función seleccionada
 if option == "Generador de Código QR":
     qr_generator()
 elif option == "Recortar PDF":
@@ -666,9 +956,16 @@ elif option == "Recortar PDF":
 elif option == "Convertidor de Texto a Voz":
     text_to_speech_converter()
 elif option == "Convertidor de Archivos":
-    try:
-        file_converter()
-    except Exception as e:
-        st.error(f"Error al cargar el convertidor de archivos: {str(e)}")
-else:
-    st.error(f"Opción no reconocida: {option}")
+    file_converter()
+
+# Mostrar información de la aplicación en el pie de página
+st.sidebar.markdown("---")
+st.sidebar.info(
+    """
+    **Aplicación Multifuncional v1.0**
+    
+    Esta aplicación cuenta con múltiples herramientas útiles para el trabajo diario.
+    
+    Desarrollada con Streamlit.
+    """
+)
